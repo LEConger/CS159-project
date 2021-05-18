@@ -10,10 +10,11 @@ import matplotlib
 env = gym.make('Pendulum-v0')
 
 env.dt=1e-7
-print(env.dt)
+env.max_torque=100
+print("max torque ",env.max_torque)
 obs = env.reset()
 print(obs)
-alpha = 1
+alpha = 10
 beta  = 1
 u_vec = []
 x_vec = []
@@ -22,7 +23,7 @@ m = env.m
 l = env.l
 g = env.g
 
-for ii in range(200):
+for ii in range(100):
     # compute action based on linearized system
     #x1 = np.sqrt(obs[0]**2+obs[1]**2)
     #x2 = obs[2]
@@ -34,11 +35,12 @@ for ii in range(200):
     # feedback linearization
     #x1 = np.arctan2(obs[1],obs[0]) # fix this - use tangent inverse
     x1,x2 = env.state
+
     #x2 = obs[2]
     nonlinear_cancellation = m*l*g/2 * np.sin(x1 + np.pi)
     #u = -beta*x2-alpha*x1 - nonlinear_cancellation #-alpha*x1 - beta*x2 - obs[1] # here, obs[1] is the nonlinearity
-    u = -beta*(x1-np.pi/2)-alpha*x2 #-beta*(x1-np.pi/2)-alpha*x2 + nonlinear_cancellation
-    
+    u = -beta*x2 - alpha*x1 + nonlinear_cancellation #-beta*(x1-np.pi/2)-alpha*x2 + nonlinear_cancellation
+    #print(-3 * g / (2 * l) * np.sin(x1 + np.pi) + 3. / (m * l ** 2) * u)
     # apply action
     env.step([u]) # take a random action env.action_space.sample()
     x_vec.append(x1)
