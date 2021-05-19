@@ -77,7 +77,7 @@ m = env.m
 l = env.l
 g = env.g
 N = 100
-######### feedback linearization with noise #########
+######### linearized model #########
 for ii in range(N):
     # feedback linearization
     x1,x2 = env.state # theta, theta-dot
@@ -132,8 +132,8 @@ deltaxd = [] # expected - actual for x2
 m = env.m
 l = env.l
 g = env.g
-N = 30
-M = 40 # number of initial conditions
+N = 10
+M = 100 # number of initial conditions
 
 for jj in range(M):
     
@@ -146,7 +146,7 @@ for jj in range(M):
     for ii in range(N):
         # feedback linearization
         x1,x2 = env.state # theta, theta-dot
-        input_term = np.random.uniform(-0.1,0.1)
+        input_term = np.random.uniform(-6,6)
 
         # add random input
         u = -alpha*x2 - beta*x1 + input_term
@@ -205,6 +205,13 @@ D_in = 2 # x1, x2
 H = 100
 D_out = 2 # delta x, delta x dot
 
+train_count = int(0.8 * len(x_vec)) 
+train_idx   = np.random.choice(np.arange(len(x_vec)),size=train_count)
+x_train     = xx[train_idx]
+x_test      = xx[~train_idx]
+y_train     = yy[train_idx]
+y_test      = yy[~train_idx]
+
 
 model = torch.nn.Sequential(
     torch.nn.Linear(D_in, H),
@@ -223,14 +230,19 @@ loss_fn = torch.nn.MSELoss()
 learning_rate = 1e-5
 optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
 epochs = 5000
-loss_list = np.zeros(epochs)
+loss_train = np.zeros(epochs)
+loss_test  = np.zeros(epochs)
 for t in range(5000):
     # Forward pass: compute predicted y by passing x to the model.
-    y_pred = model(xx)
+    y_pred = model(x_train)
 
     # Compute and save loss.
-    loss = loss_fn(y_pred, yy)
-    loss_list[t] = loss.item()
+    loss = loss_fn(y_pred, y_train)
+    loss_train[t] = loss.item()
+
+    # compute testing loss
+    test_loss = loss_fn(model(x_test),y_test)
+    loss_test[t] = test_loss.item()
 
     optimizer.zero_grad()
 
@@ -242,7 +254,9 @@ for t in range(5000):
 
 
 plt.figure()
-plt.semilogy(loss_list)
+plt.semilogy(loss_train,label="Train")
+plt.semilogy(loss_test,label='Test')
+plt.legend()
 plt.xlabel("epoch")
 plt.ylabel("MSE Loss")
 plt.show()
