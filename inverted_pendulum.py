@@ -8,6 +8,7 @@ import matplotlib
 #matplotlib inline
 import gym.envs.classic_control.pendulum as pendulum
 import torch
+import pickle
 
 #env = gym.make('Pendulum-v0')
 env = pendulum.PendulumEnv(max_torque = 50,max_speed=50)
@@ -262,6 +263,7 @@ plt.xlabel("epoch")
 plt.ylabel("MSE Loss")
 plt.show()
 
+pickle.dump(model , open( 'nn_model.pkl' , 'wb' ))
 #%% check NN
 plt.figure()
 plt.plot(x_train[:,0].detach().numpy(),model(x_train)[:,0].detach().numpy(),'.')
