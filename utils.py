@@ -18,7 +18,7 @@ def generate_data(num_sims,
     ''' 
         num_sims: scalar, number of simulations, each has random initial condition
         num_time_steps: scalar, length of each simulation
-        control_method: "generate data", "feedback linearization","linearized approx","model"
+        control_method: "generate data", "feedback linearization","linearized approx","nn model"
         return_training_data: if True, returns theta, theta-dot, delta-theta, delta-theta-dot, and u_vec vectors
                             o/w only plots trajectories
         noise level: scalar, magnitude of input noise
@@ -61,8 +61,8 @@ def generate_data(num_sims,
                 u = use_feedback_linearization(alpha,beta,x1,x2,noise_level,m,l,g)
             elif control_method == "linearized approx":
                 u = use_linear_approx(alpha,beta,x1,x2,noise_level)
-            elif control_method == "model":
-                u = use_model(model,alpha,beta,x1,x2,noise_level,g,dt)
+            elif control_method == "nn model":
+                u = use_nn_model(model,alpha,beta,x1,x2,noise_level,g,dt)
             
             # apply action
             env.step([u]) # take an action
@@ -101,7 +101,7 @@ def generate_data(num_sims,
         return x_vec,xdot_vec,deltax,deltaxd,u_vec
 
 
-def use_model(model,alpha,beta,x1,x2,noise_level,g,dt):
+def use_nn_model(model,alpha,beta,x1,x2,noise_level,g,dt):
     x = torch.Tensor([x1,x2])
     y = model(x.float())
     nonlinear_cancellation = -g/2*( 20*float(y[0].detach().numpy())/(3*g*dt) +x1 )

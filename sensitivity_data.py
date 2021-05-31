@@ -116,7 +116,7 @@ for ii in range(len(data_amount)):
 
     generate_data(1,
                   100,
-                  control_method="model",
+                  control_method="nn model",
                   return_training_data=False,
                   noise_level=0,
                   model=model)

@@ -27,7 +27,7 @@ generate_data(num_sims,
                 alpha=alpha,
                 beta=beta)
 
-#%% ############### Learn nonlinearity with neural network; include noise #############
+#%% ############### Lgenerate data for neural network; include noise #############
 num_sims       = 500
 num_time_steps = 10
 x_vec,xdot_vec,deltax,deltaxd,u_vec = generate_data(num_sims,
@@ -121,7 +121,7 @@ num_time_steps = 100
 beta = 1
 generate_data(num_sims,
                   num_time_steps,
-                  control_method="model",
+                  control_method="nn model",
                   return_training_data=False,
                   noise_level=0,
                   model=model,
