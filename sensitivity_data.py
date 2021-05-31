@@ -9,16 +9,10 @@
 # if so, then use lipschitz coeff
 # also try using less data
 
-import gym
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
-import gym.envs.classic_control.pendulum as pendulum
 import torch
-import pickle
 from utils import *
-# load nn
-# pickle.load('nn_model.pkl' , 'rb' )
 
 
 #%% ablation
