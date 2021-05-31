@@ -36,7 +36,7 @@ deltaxd = [] # expected - actual for x2
 m = env.m
 l = env.l
 g = env.g
-N = 10
+N = 5
 M = 100 # number of initial conditions
 
 
@@ -102,10 +102,10 @@ plt.plot(xdot_vec,'.')
 plt.plot(u_vec,'.')
 # %% train on varying amounts of data on an excessively large NN
 
-data_amount = np.arange(0.01,0.2,0.02) # in increments of 5%
+data_amount = np.arange(0.01,0.1,0.01) # in increments of 5%
 xx          = torch.Tensor(np.transpose(np.array([x_vec,xdot_vec])))
 yy          = torch.Tensor(np.transpose(np.array([deltax,deltaxd])))
-N           = len(x_vec)
+r           = len(x_vec)
 
 # NN parameters
 D_in  = 2 # x1, x2
@@ -128,11 +128,11 @@ for ii in range(len(data_amount)):
     )
 
     # pick data
-    keep_count  = int(data_amount[ii]*N)
+    keep_count  = int(data_amount[ii]*r)
     train_count = int(0.80 * keep_count)
-    keep_idx    = np.random.choice(N,size=keep_count,replace=False)
+    keep_idx    = np.random.choice(r,size=keep_count,replace=False)
     train_idx   = np.random.choice(keep_count,size=train_count,replace=False)
-    mask        = np.zeros(N,dtype=bool)
+    mask        = np.zeros(r,dtype=bool)
     train_mask  = np.zeros(keep_count,dtype=bool)
     train_mask[train_idx] = True
     mask[keep_idx[train_mask]] = True
@@ -147,7 +147,7 @@ for ii in range(len(data_amount)):
     loss_fn = torch.nn.MSELoss()
     learning_rate = 1e-4
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate)
-    epochs = 5000
+    epochs = 1000
     loss_train = np.zeros(epochs)
     loss_test  = np.zeros(epochs)
     for t in range(epochs):
@@ -187,7 +187,59 @@ for ii in range(len(data_amount)):
     plt.ylabel(r"$\Delta \dot{\theta}$")
     plt.title("Model results with "+str(train_count)+" samples")
 
+    env = pendulum.PendulumEnv(max_torque = 50,max_speed=50)
+    env.seed(14)
+    obs = env.reset()
+    env.dt=0.1
+    alpha = 1
+    beta  = 1
+    u_vec = []
+    x_vec = []
+    xdot_vec=[]
+    m = env.m
+    l = env.l
+    g = env.g
+    n = 100
+    ######### feedback linearization with nn model #########
+    for ii in range(n):
+        # feedback linearization
+        x1,x2 = env.state # theta, theta-dot
+        #print(x1,x2)
+        # cancel out the nonlinear term
+        x = torch.Tensor([x1,x2])
+        y = model(x.float())
+        
+        #nonlinear_cancellation = 3*g/(2*l)*x1 + float(y[1].detach().numpy())*m*l**2/3
+        nonlinear_cancellation = -g/2*( 20*float(y[0].detach().numpy())/(3*g*env.dt) +x1 )
+        #print(x1,nonlinear_cancellation,m*l*g/2 * np.sin(x1 + np.pi))
+        # -m*l*g/2 * np.sin(x1 + np.pi)
+        #print(2*np.pi-nonlinear_cancellation)
+        u = -alpha*x2-beta*x1+nonlinear_cancellation
 
-#%%
+        # apply action
+        obs,_,_,_ = env.step([u]) # take an action
+        x_vec.append(x1)
+        u_vec.append(u)
+        xdot_vec.append(x2)
 
-# %%
+        if np.abs(x1) <= 0.001 and np.abs(x2) <=0.001:
+            print(ii)
+            break
+
+    #%% plot results
+    t = env.dt*np.arange(len(x_vec))
+    plt.figure()
+    plt.subplot(211)
+    plt.plot(t,x_vec,label=r"$\theta$")
+    plt.plot(t,xdot_vec,label=r"$\dot{\theta}$")
+    plt.ylabel(r"$\circ \ \ \ \ \circ/s$")
+    plt.legend()
+    plt.title("feedback linearization with NN")
+    plt.subplot(212)
+    plt.plot(t,u_vec,label="u")
+    plt.xlabel('time (s)')
+    plt.ylabel(r"$N \cdot m$")
+    plt.legend()
+    plt.show()   
+
+
