@@ -63,6 +63,8 @@ def generate_data(num_sims,
                 u = use_linear_approx(alpha,beta,x1,x2,noise_level)
             elif control_method == "nn model":
                 u = use_nn_model(model,alpha,beta,x1,x2,noise_level,g,dt)
+            elif control_method == "local regression model":
+                u = use_local_regression_model(model,alpha,beta,x1,x2,noise_level,g,dt)
             
             # apply action
             env.step([u]) # take an action
@@ -107,6 +109,14 @@ def use_nn_model(model,alpha,beta,x1,x2,noise_level,g,dt):
     nonlinear_cancellation = -g/2*( 20*float(y[0].detach().numpy())/(3*g*dt) +x1 )
     u = -alpha*x2-beta*x1+nonlinear_cancellation + np.random.randn()*noise_level
     return u
+
+def use_local_regression_model(model,alpha,beta,x1,x2,noise_level,g,dt):
+    # what is x1, x2
+    # prediction using model
+
+    nonlinear_cancellation = -g/2*( 20*float(y[0])/(3*g*dt) +x1 )
+    u = -alpha*x2-beta*x1+nonlinear_cancellation + np.random.randn()*noise_level
+
 
 def use_feedback_linearization(alpha,beta,x1,x2,noise_level,m,l,g):
     nonlinear_cancellation = -m*l*g/2 * np.sin(x1 + np.pi) + np.random.randn()*noise_level

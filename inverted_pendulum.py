@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 # import gym.envs.classic_control.pendulum as pendulum
 import torch
 from utils import *
-%load_ext autoreload
-%autoreload 2
+#%load_ext autoreload
+#%autoreload 2
 
 
 #%% ############# feedback linearization ########################
@@ -37,6 +37,37 @@ x_vec,xdot_vec,deltax,deltaxd,u_vec = generate_data(num_sims,
                                                     return_training_data=True,
                                                     alpha=alpha,
                                                     beta=beta)
+
+#%% ############ train local regression ##############
+
+# shape our training data
+xx = np.array([1, x_vec, xdot_vec])
+yy = np.array([deltax, deltaxd])
+
+# implement local regression
+
+# instead of pre-training, fit a local regression at inference on the x of choice, with all training data supplemental ??
+# do we need more than 1 sim to fit theta ?
+
+# weight matrix;  = y
+theta = np.array([])
+
+# train model
+local_regressor = None
+
+# test on new data
+num_sims       = 1
+num_time_steps = 100
+beta = 1
+generate_data(num_sims,
+                  num_time_steps,
+                  control_method="local regression model",
+                  return_training_data=False,
+                  noise_level=0,
+                  model=local_regressor,
+                  alpha=alpha,
+                  beta=beta)
+
 
 #%% ############# train model ####################
 
