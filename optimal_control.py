@@ -1,94 +1,28 @@
-import gym
+#%%
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib
 import gym.envs.classic_control.pendulum as pendulum
 import torch
+from utils import *
 
 #%%
-env = pendulum.PendulumEnv(max_torque = 50,max_speed=50)
-env.seed(14)
-obs = env.reset()
-dt = 0.1
-env.dt=dt
-alpha = 1
-beta  = 1
-u_vec = []
-x_vec = []
-xdot_vec=[]
-deltax = [] # expected - actual for x1
-deltaxd = [] # expected - actual for x2
-m = env.m
-l = env.l
-g = env.g
-N = 5
-M = 100 # number of initial conditions
-
-#%% generate training data
-
-for jj in range(M):
-    
-    # make new environment with random initial condition
-    env.close()
-    env = pendulum.PendulumEnv(max_torque = 50,max_speed=50)
-    env.reset()
-    env.dt=0.1
-
-    for ii in range(N):
-        # feedback linearization
-        x1,x2 = env.state # theta, theta-dot
-        input_term = np.random.uniform(-6,6)
-
-        # add random input
-        u = -alpha*x2 - beta*x1 + input_term + np.random.randn()
-
-        # apply action
-        env.step([u]) # take an action
-        x_vec.append(x1)
-        xdot_vec.append(x2)
-        u_vec.append(u)
-
-        # sample state; compute difference between expected and actual
-        # we are assuming x_dot = Ax + Bu + f(x) where f(x) is a nonlinearity
-        x1_new,x2_new = env.state # theta, theta-dot
-        x2_expected = x2 + 3*( g/(2*l)*x1 + u/(m*l**2) )*env.dt
-        #x2_expected = x2 + 3*( -g/(2*l)*np.sin(x1+np.pi) + u/(m*l**2) )*env.dt
-        x1_expected = x1 + env.dt*x2_expected
-        # compute and store differences
-        deltax.append(x1_new-x1_expected)
-        deltaxd.append(x2_new-x2_expected)
-
-#%% view training data
-plt.figure(figsize=(15,15))
-plt.subplot(4,1,1)
-plt.plot(x_vec,deltax,'.')
-plt.ylabel(r"$\Delta x$")
-plt.xlabel("x")
-
-plt.subplot(4,1,2)
-plt.plot(xdot_vec,deltax,'.')
-plt.ylabel(r"$\Delta x$")
-plt.xlabel(r"$\dot{x}$")
-
-plt.subplot(4,1,3)
-plt.plot(x_vec,deltaxd,'.')
-plt.ylabel(r"$\Delta \dot{x}$")
-plt.xlabel("x")
-
-plt.subplot(4,1,4)
-plt.plot(xdot_vec,deltaxd,'.')
-plt.ylabel(r"$\Delta \dot{x}$")
-plt.xlabel(r"$\dot{x}$")
-
-plt.figure()
-plt.plot(x_vec,'.')
-plt.plot(xdot_vec,'.')
-plt.plot(u_vec,'.')
-
+alpha          = 1
+beta           = 5.5
+num_sims       = 500
+num_time_steps = 10
+x_vec,xdot_vec,deltax,deltaxd,u_vec = generate_data(num_sims,
+                                                    num_time_steps,
+                                                    control_method="generate data",
+                                                    noise_level = 0,
+                                                    return_training_data=True,
+                                                    alpha=alpha,
+                                                    beta=beta)
 #%% now let's try learning the optimal control, not just the nonlinearity
 xx          = torch.Tensor(np.transpose(np.array([x_vec,xdot_vec])))
 yy          = torch.Tensor(np.transpose(np.array([deltax,deltaxd])))
-
+l = 1
+g = 10
+m = 1
 # NN parameters
 D_in  = 2 # x1, x2
 H     = 100
@@ -159,16 +93,14 @@ plt.title("Model results with "+str(train_count)+" samples")
 
 #%% now train with quadratic cost function
 
-xx          = torch.Tensor(np.transpose(np.array([x_vec,xdot_vec])))
-
-D_out = 1
+xx   = torch.Tensor(np.transpose(np.array([x_vec,xdot_vec])))
+dt = 0.1
+D_out = 5
 model2 = torch.nn.Sequential(
 torch.nn.Linear(D_in, H),
 torch.nn.ReLU(),
 torch.nn.Linear(H, H),
-torch.nn.Tanh(),
-torch.nn.Linear(H, H),
-torch.nn.Sigmoid(),
+torch.nn.ReLU(),
 torch.nn.Linear(H, H),
 torch.nn.ReLU(),
 torch.nn.Linear(H, D_out)
@@ -186,31 +118,57 @@ y_test      = torch.zeros(len(x_vec)-train_count)
 
 x1 = x_train[:,0]
 x2 = x_train[:,1]
+x1_test = x_test[:,0]
+x2_test = x_test[:,1]
 print("x1,x2",x1.shape,x2.shape)
 
 # train network
 loss_fn = torch.nn.MSELoss()
 learning_rate = 1e-4
 optimizer = torch.optim.RMSprop(model2.parameters(), lr=learning_rate)
-epochs = 1000
+epochs = 2000
 loss_train = np.zeros(epochs)
 loss_test  = np.zeros(epochs)
+costw = torch.Tensor([[1,0.1]])
 for t in range(epochs):
     # Forward pass: compute predicted y by passing x to the model.
     u = model2(x_train).squeeze()
-    
+    #print("size of u",u.shape)
     # Compute and save loss. 
-    x2_expected = x2.add(3*( g/(2*l)*x1 + u/(m*l**2) )*dt).add(model(x_train)[:,0])
-    x1_expected = x1 + dt*x2_expected
+    nextx1 = x1.detach().clone()
+    nextx2 = x2.detach().clone()
+    stacked = torch.stack([nextx1,nextx2])
+    cost_value = torch.zeros(1,train_count)
+    
+    # try computing single u, do this m times and iterate x, then backprop
 
-    next_x      = torch.stack([x1_expected,x2_expected])
-    #print("next_x",next_x.shape)
-    cost_value  = torch.square(u)+torch.square(next_x)*10
+    for ii in range(D_out):
+        trans_input = torch.transpose(stacked,0,1)
+        nextx2 = nextx2.add(3*( g/(2*l)*nextx1 + u[:,ii]/(m*l**2) )*dt).add(model(trans_input)[:,0])
+        nextx1 = nextx1 + dt*nextx2
+        stacked = torch.stack([nextx1,nextx2])
+        cost_value += torch.square(u[:,ii]*0.01)+torch.matmul(costw,torch.square(stacked))
+        #print(nextx2.shape)
+        #print(nextx1.shape)
+    # x2_expected = x2.add(3*( g/(2*l)*x1 + u/(m*l**2) )*dt).add(model(x_train)[:,0])
+    # x1_expected = x1 + dt*x2_expected
 
-    loss = loss_fn(cost_value, y_train)
+    # next_x      = torch.stack([x1_expected,x2_expected])
+    # cost_value  = torch.square(u)+ \
+    #               torch.matmul(costw,torch.square(next_x)*10)
+    #               #torch.sum(torch.square(next_x)*100,dim=0)
+
+    loss = loss_fn(cost_value.squeeze(), y_train)
     loss_train[t] = loss.item()
 
     # compute testing loss
+    #u_test       = model2(x_test).squeeze()
+    #x2_ex_test   = x2_test.add(3*( g/(2*l)*x1_test + u_test/(m*l**2) )*dt).add(model(x_test)[:,0])
+    #x1_ex_test   = x1_test + dt*x2_ex_test
+    #next_x_test  = torch.stack([x1_ex_test,x2_ex_test])
+    #cost_valuet  = torch.square(u_test)+torch.matmul(costw,torch.square(next_x_test)*10)
+    #losst        = loss_fn(cost_valuet.squeeze(), y_test)
+    #loss_test[t] = losst.item()
     #test_loss = loss_fn(model2(x_test),y_test)
     #loss_test[t] = test_loss.item()
 
@@ -242,9 +200,8 @@ plt.show()
 env = pendulum.PendulumEnv(max_torque = 50,max_speed=50)
 env.seed(14)
 obs = env.reset()
-env.dt=0.1
-alpha = 1
-beta  = 1
+dt=0.1
+env.dt=dt
 u_vec = []
 x_vec = []
 xdot_vec=[]
