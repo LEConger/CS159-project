@@ -1,8 +1,8 @@
 #%%
-# import numpy as np
+import numpy as np
 import matplotlib.pyplot as plt
-# import matplotlib
-# import gym.envs.classic_control.pendulum as pendulum
+import matplotlib
+import gym.envs.classic_control.pendulum as pendulum
 import torch
 from utils import *
 #%load_ext autoreload
@@ -27,22 +27,26 @@ generate_data(num_sims,
                 alpha=alpha,
                 beta=beta)
 
-#%% ############### Lgenerate data for neural network; include noise #############
-num_sims       = 500
-num_time_steps = 10
-x_vec,xdot_vec,deltax,deltaxd,u_vec = generate_data(num_sims,
-                                                    num_time_steps,
-                                                    control_method="generate data",
-                                                    noise_level = 1,
-                                                    return_training_data=True,
-                                                    alpha=alpha,
-                                                    beta=beta)
+#%% ############### Lgenerate data for local regression; include noise #############
+num_sims       = 1
+num_time_steps = 100
+x_vec,xdot_vec,deltax,deltaxd,_ = generate_data(num_sims,
+                                                num_time_steps,
+                                                control_method="generate data",
+                                                noise_level = 1,
+                                                return_training_data=True,
+                                                alpha=alpha,
+                                                beta=beta)
+
+
+
+
 
 #%% ############ train local regression ##############
 
 # shape our training data
-xx = np.array([1, x_vec, xdot_vec])
-yy = np.array([deltax, deltaxd])
+xx = np.transpose(np.array([x_vec, xdot_vec]))  # do we needd a bias term?
+yy = np.transpose(np.array([deltax, deltaxd]))
 
 # implement local regression
 
@@ -68,6 +72,17 @@ generate_data(num_sims,
                   alpha=alpha,
                   beta=beta)
 
+#%% ############### Lgenerate data for neural network; include noise #############
+num_sims       = 500
+num_time_steps = 10
+x_vec,xdot_vec,deltax,deltaxd,u_vec = generate_data(num_sims,
+                                                    num_time_steps,
+                                                    control_method="generate data",
+                                                    noise_level = 1,
+                                                    return_training_data=True,
+                                                    alpha=alpha,
+                                                    beta=beta)
+
 
 #%% ############# train model ####################
 
@@ -77,10 +92,12 @@ D_in = 2 # x1, x2
 H = 100
 D_out = 2 # delta x, delta x dot
 
+# random train/test split --> indices
 train_count = int(0.90 * len(x_vec)) 
 train_idx   = np.random.choice(len(x_vec),size=train_count,replace=False)
 mask        = np.zeros(len(x_vec),dtype=bool)
 mask[train_idx] = True
+# selecting instances for splits by index
 x_train     = xx[mask,:]
 x_test      = xx[~mask,:]
 y_train     = yy[mask,:]
