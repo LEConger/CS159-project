@@ -110,6 +110,11 @@ def use_nn_model(model,alpha,beta,x1,x2,noise_level,g,dt):
     u = -alpha*x2-beta*x1+nonlinear_cancellation + np.random.randn()*noise_level
     return u
 
+def use_gp_model(model, alpha, beta, x1, x2, noise_level, g, dt):
+    # Assumes that model is a mapping x -> u
+    x = np.array([x1, x2])
+    return model(x) + np.random.randn()*noise_level
+
 def use_local_regression_model(model,alpha,beta,x1,x2,noise_level,g,dt):
     # what is x1, x2
     # prediction using model
