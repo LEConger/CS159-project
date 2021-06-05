@@ -116,11 +116,13 @@ def use_gp_model(model, alpha, beta, x1, x2, noise_level, g, dt):
     return model(x) + np.random.randn()*noise_level
 
 def use_local_regression_model(model,alpha,beta,x1,x2,noise_level,g,dt):
-    # what is x1, x2
-    # prediction using model
-
+    # prediction using model trained over sim/steps
+    print("TADAAAAAA")
+    local_regression, training_data = model
+    y, y_dot = local_regression(training_data, x1)
     nonlinear_cancellation = -g/2*( 20*float(y[0])/(3*g*dt) +x1 )
     u = -alpha*x2-beta*x1+nonlinear_cancellation + np.random.randn()*noise_level
+    return u
 
 
 def use_feedback_linearization(alpha,beta,x1,x2,noise_level,m,l,g):
